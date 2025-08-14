@@ -182,8 +182,7 @@ const App: React.FC = () => {
   const [sprintStats, setSprintStats] = useState<SprintStats | null>(null);
 
   // フィルター状態
-  const [selectedUser, setSelectedUser] = useState<string>("all");
-  const [availableUsers, setAvailableUsers] = useState<string[]>([]);
+  const [selectedUser] = useState<string>("all");
 
   // GitHub接続処理
   const handleConnect = async () => {
@@ -299,7 +298,6 @@ const App: React.FC = () => {
 
       console.log("Available users:", users);
 
-      setAvailableUsers(users);
     } catch (error) {
       console.error("Failed to fetch project data:", error);
       setError("プロジェクトデータの取得に失敗しました");
@@ -372,10 +370,6 @@ const App: React.FC = () => {
 
     // 全期間ベロシティ（参考値）
     const velocity = daysElapsed > 0 ? completedStoryPoints / daysElapsed : 0;
-    const workingDayVelocity = calculateWorkingDayVelocity(
-      completedStoryPoints,
-      workingDaysElapsed
-    );
 
     // 予測完了日（条件を満たす場合のみ計算）
     let predictedCompletionDate = "";
@@ -423,7 +417,7 @@ const App: React.FC = () => {
     setSprintStats(stats);
 
     // バーンダウン/バーンアップデータ生成
-    generateBurndownData(filteredIssues, stats, startDate, endDate);
+    generateBurndownData(filteredIssues, stats, startDate);
 
     // ベロシティデータ生成（常に今日まで）
     const velocityEndDate = new Date(); // 今日まで
@@ -434,7 +428,6 @@ const App: React.FC = () => {
     filteredIssues: Issue[],
     stats: SprintStats,
     startDate: Date,
-    endDate: Date
   ) => {
     const data: BurndownData[] = [];
     const today = new Date();
