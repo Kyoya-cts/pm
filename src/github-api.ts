@@ -85,7 +85,7 @@ const GITHUB_GRAPHQL_QUERY = `
       projectV2(number: $projectNumber) {
         id
         title
-        items(first: 100) {
+        items(first: 10000) {
           nodes {
             id
             content {

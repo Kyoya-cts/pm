@@ -297,7 +297,6 @@ const App: React.FC = () => {
       ] as string[];
 
       console.log("Available users:", users);
-
     } catch (error) {
       console.error("Failed to fetch project data:", error);
       setError("プロジェクトデータの取得に失敗しました");
@@ -427,7 +426,7 @@ const App: React.FC = () => {
   const generateBurndownData = (
     filteredIssues: Issue[],
     stats: SprintStats,
-    startDate: Date,
+    startDate: Date
   ) => {
     const data: BurndownData[] = [];
     const today = new Date();
