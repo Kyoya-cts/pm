@@ -80,12 +80,16 @@ export interface GitHubConfig {
 }
 
 const GITHUB_GRAPHQL_QUERY = `
-  query($org: String!, $projectNumber: Int!) {
+  query($org: String!, $projectNumber: Int!, $after: String) {
     organization(login: $org) {
       projectV2(number: $projectNumber) {
         id
         title
-        items(first: 10000) {
+        items(first: 100, after: $after) {
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
           nodes {
             id
             content {
@@ -185,38 +189,76 @@ export async function fetchGitHubProjectData(
   config: GitHubConfig
 ): Promise<ProjectData> {
   try {
-    const response = await fetch("https://api.github.com/graphql", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${config.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: GITHUB_GRAPHQL_QUERY,
-        variables: {
-          org: config.organization,
-          projectNumber: config.projectNumber,
+    let allItems: any[] = [];
+    let hasNextPage = true;
+    let endCursor: string | null = null;
+    let projectId = "";
+    let projectTitle = "";
+
+    // ページングを使って全てのアイテムを取得
+    while (hasNextPage) {
+      const response = await fetch("https://api.github.com/graphql", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.token}`,
+          "Content-Type": "application/json",
         },
-      }),
-    });
+        body: JSON.stringify({
+          query: GITHUB_GRAPHQL_QUERY,
+          variables: {
+            org: config.organization,
+            projectNumber: config.projectNumber,
+            after: endCursor,
+          },
+        }),
+      });
 
-    if (!response.ok) {
-      throw new Error(
-        `GitHub API request failed: ${response.status} ${response.statusText}`
-      );
+      if (!response.ok) {
+        throw new Error(
+          `GitHub API request failed: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+
+      if (data.errors) {
+        throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+      }
+
+      if (!data.data?.organization?.projectV2) {
+        throw new Error("Project not found or access denied");
+      }
+
+      const project = data.data.organization.projectV2;
+      const items = project.items;
+
+      // 最初のページでプロジェクト情報を保存
+      if (endCursor === null) {
+        projectId = project.id;
+        projectTitle = project.title;
+      }
+
+      // アイテムを配列に追加
+      allItems = allItems.concat(items.nodes);
+
+      // ページング情報を更新
+      hasNextPage = items.pageInfo.hasNextPage;
+      endCursor = items.pageInfo.endCursor;
+
+      // レート制限を避けるために少し待機
+      if (hasNextPage) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
     }
 
-    const data = await response.json();
-
-    if (data.errors) {
-      throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
-    }
-
-    if (!data.data?.organization?.projectV2) {
-      throw new Error("Project not found or access denied");
-    }
-
-    return data.data.organization.projectV2;
+    // 全てのアイテムを含むProjectDataを返す
+    return {
+      id: projectId,
+      title: projectTitle,
+      items: {
+        nodes: allItems,
+      },
+    };
   } catch (error) {
     console.error("Error fetching GitHub project data:", error);
     throw error;
